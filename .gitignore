@@ -4,3 +4,9 @@ __pycache__
 scrapy_env
 .env
 migrations
+.venv
+test.py
+/venv
+venv
+backend/example.env
+*.env

@@ -1,3 +1,4 @@
+#import pandas as pd
 import copy
 from datetime import datetime, timedelta
 
@@ -11,7 +12,7 @@ from loguru import logger
 from django.conf import settings
 from posts.models import PostModel
 
-from .spiders.core.services import extract_domain, to_datetime
+from .spiders.core.services import extract_domain, to_datetime, get_div
 from posts.annotation import get_popular_words
 
 
@@ -32,24 +33,26 @@ class PreprocessPipeline():
 
         if item.get('views'):
             views = item.get('views').lstrip('UserPageVisits:')
-            item['views'] = int(float(views.replace('k', '').replace(',', '.')) * 1000) if 'k' in views else int(views)
-        
+            item['views'] = int(float(views.replace('k', '').replace(
+                ',', '.')) * 1000) if 'k' in views else int(views)
+
         if item.get('likes'):
             likes = item.get('likes').lstrip('+').strip()
             likes = likes.replace('–', '-')
             item['likes'] = int(likes)
-        
+
         if item.get('unlikes'):
             unlikes = item.get('unlikes').lstrip('-').strip()
             item['likes'] -= int(unlikes)
-        
+
         for i in BS(item['text']).find_all('img'):
             if i.get('src'):
                 if not i['src'].startswith('http'):
                     address = spider.url.split('/')
                     address = address[0] + '//' + address[2]
-                    item['text'] = item['text'].replace(i['src'], address + i['src'])
-        
+                    item['text'] = item['text'].replace(
+                        i['src'], address + i['src'])
+
         text = BS(item.get('text'), features="lxml").text
         words = list(set(get_popular_words(text)))
         if item.get('tags'):
@@ -58,7 +61,8 @@ class PreprocessPipeline():
 
         if item.get('posted'):
             try:
-                item['posted'] = datetime.strptime(item.get('posted'), "%Y-%m-%dT%H:%M:%S%z")
+                item['posted'] = datetime.strptime(
+                    item.get('posted'), "%Y-%m-%dT%H:%M:%S%z")
             except Exception:
                 posted = item.get('posted').replace('Создано: ', '')
                 posted = posted.replace('Обновлено: ', '')
@@ -66,16 +70,18 @@ class PreprocessPipeline():
                     posted = posted.replace('вчера в ', '').split(':')
                     now = datetime.now()
                     yesterday = now - timedelta(days=1)
-                    item['posted'] = now.replace(day=yesterday.day, hour=int(posted[0]), minute=int(posted[1]), second=0, microsecond=0)
+                    item['posted'] = now.replace(day=yesterday.day, hour=int(
+                        posted[0]), minute=int(posted[1]), second=0, microsecond=0)
 
                 elif 'сегодня' in posted.lower():
                     posted = posted.replace('сегодня в ', '').split(':')
                     now = datetime.now()
-                    item['posted'] = now.replace(hour=int(posted[0]), minute=int(posted[1]), second=0, microsecond=0)
+                    item['posted'] = now.replace(hour=int(posted[0]), minute=int(
+                        posted[1]), second=0, microsecond=0)
 
                 else:
                     item['posted'] = to_datetime(posted)
-        
+
         return item
 
 
@@ -86,7 +92,7 @@ class PostgresPipeline():
     def close_spider(self, spider):
         logger.success(f'{spider.name.upper()} finished!')
         logger.success(f'Scraped: {len(self.urls)} items.')
-    
+
     def process_item(self, item, spider):
         source = extract_domain(item['link'])
         h = PostModel.objects.get_or_create(
@@ -108,4 +114,59 @@ class PostgresPipeline():
         model.datetime.append(item.get('datetime'))
         model.comments.append(item.get('comments'))
         model.save()
+        return item
+
+
+
+  def toDataset(self, item, spider):
+       source = extract_domain(item['link'])
+        link = item['link']
+        title = item['title']
+        posted = item['posted']
+        text = item['text']
+        likes = item.get('likes')
+        bookmarks = item.get('bookmarks')
+        views = item.get('views')
+        datetime = item.get('datetime')
+        comments = item.get('comments')
+
+        new_row = pd.Series([source, link, title, posted, text, likes,
+                            bookmarks, views, datetime, comments], index=self.df.columns)
+        self.df = self.df.append(new_row, ignore_index=True)
+
+        logger.warning(f'\n{self.df}')
+
+        return item
+
+
+class JsonPipeline():
+
+    total_list = list()
+
+    def open_spider(self, spider):
+        logger.success(f'Run spider: {spider.name.upper()}')
+
+    def close_spider(self, spider):
+        logger.success(f'{spider.name.upper()} finished!')
+        logger.success(f'Scraped: {len(self.urls)} items.')
+
+    def process_item(self, item, spider):
+        source = extract_domain(item['link'])  # +
+        link = item['link']  # +
+        title = item['title']  # +
+        posted = item['posted']  # +
+        text = item['text']  # +
+        likes = item.get('likes')  # +
+        datetime = item.get('datetime')  # МОЕ ВРЕМЯ, ЕГО НЕ НАДО
+        # ЕСЛИ НОЛЬ ТО ХЗ ЧТО, ЕСЛИ 1 ТО ТОЖЕ ХЗ ЧТО ЭТО
+        bookmarks = item.get('bookmarks')
+        # Путается также как и марки и лайки (иногда)
+        views = item.get('views')
+        comments = item.get('comments')  # также путается
+
+        dataNames = ['posted', 'comments', 'views', 'likes', 'bookmarks']
+        datas = [posted, comments, views, likes, bookmarks]
+
+        logger.info(comments)
+        logger.info(get_div(link, comments))
         return item

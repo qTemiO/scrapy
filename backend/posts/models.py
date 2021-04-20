@@ -17,27 +17,27 @@ class PostModel(models.Model):
     likes = ArrayField(
             models.IntegerField(blank=True),
             size=settings.PARSER_COUNTER, blank=True, null=True,
-            default = list()
+            default = list
         )
     bookmarks = ArrayField(
             models.IntegerField(blank=True),
             size=settings.PARSER_COUNTER, blank=True, null=True,
-            default = list()
+            default = list
         )
     views = ArrayField(
             models.IntegerField(blank=True),
             size=settings.PARSER_COUNTER, blank=True, null=True,
-            default = list()
+            default = list
         )
     comments = ArrayField(
             models.IntegerField(blank=True),
             size=settings.PARSER_COUNTER, blank=True, null=True,
-            default = list()
+            default = list
         )
     datetime = ArrayField(
             models.DateTimeField(),
             size=settings.PARSER_COUNTER, blank=True, null=True,
-            default = list()
+            default = list
         )
     text = models.TextField()
 
